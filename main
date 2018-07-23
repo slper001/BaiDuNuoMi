@@ -1,0 +1,110 @@
+# -*- coding: utf-8 -*-
+"""
+-------------------------------------------------
+   File Name：     mainEntrance
+   Description :
+   Author :       机器灵砍菜刀
+   date：          2018/3/31
+-------------------------------------------------
+"""
+########################################################################################################################
+# 此程序为百度糯米获取分商圈店铺信息的入口
+########################################################################################################################
+import requests
+import os
+from lxml import etree
+import math
+import pandas as pd
+# 深圳美食入口  http://sz.nuomi.com/326
+# 深圳布吉美食入口（例） http://sz.nuomi.com/326/3363-5268
+# POI编码列表
+zoneId = {'龙岗区': '3363', '宝安区': '3409', '福田区': '3450', '龙华新区': '8335',
+          '南山区': '3425', '罗湖区': '3461', '盐田区': '3508'}
+longGang = {'布吉': '5268', '坂田': '5270', '龙岗中心区': '1448', '平湖': '5267', '横岗': '5272', '大运': '12175',
+            '坪山': '5282', '大鹏': '5279', '龙岗老街': '7842', '坪地': '5276', '坑梓': '5283', '摩尔城': '5264',
+            '南澳': '5280'}
+baoAn = {'西乡': '5191', '宝安中心区': '1340', '沙井': '5193', '石岩': '5197', '福永': '5192', '新安': '5190',
+         '松岗': '5195', '公明': '5194', '港隆城': '5188', '光明': '13113'}
+fuTian = {'CBD中心区': '8016', '华强北': '1349', '八卦岭周边': '8029', '梅林周边': '8028', '车公庙': '5228',
+          '新洲周边': '11955', '沙头': '1347', '景田周边': '8026', '华强南': '1383', '皇岗周边': '8024', '岗厦周边': '8027',
+          '会展中心': '13016', '购物公园': '5206', '香蜜湖': '1343', '新城市广场': '6305', '竹子林': '11420', '中心城': '8018',
+          '莲花周边': '8025', '田面': '8299', '东海购物广场': '5212', '中心书城': '5207'}
+longHuaXinQu = {'民治': '5201', '龙华': '5198', '观澜': '5200', '大浪': '5199', '三联': '11499', '清湖': '11498',
+                '油松': '11497', '锦绣江南': '11925', '万众城': '5189', '上塘': '11496', '星河COCOCity': '19849'}
+nanShan = {'南山中心区': '1419', '西丽': '1461', '南头商业区': '8022', '蛇口': '1363', '华侨城': '1350', '白石洲': '6000',
+           '南油中心商区': '8020', '海岸城': '4478', '科技园': '1400', '海雅百货': '5161', '前海': '9943',
+           '海上世界': '5168', '太古城': '9484', '信合春天': '5172', '崇尚百货': '5173', '花园城中心': '5169',
+           '欢乐海岸': '5166', '益田广场': '5142'}
+luoHu = {'宝安南路沿线': '1356', '东门商业圈': '1361', '翠竹': '4574', '国贸': '5239', '罗湖区政府': '1357', '东湖': '5253',
+         '莲塘': '1368', '春风万佳': '8161', '笋岗': '1355', '东晓': '5250', '黄贝': '5246', '洪湖': '12169', 'kkmall': '5235',
+         '火车站': '1358', '万象城': '5232', '喜荟城': '5236', '清水河': '5258', '金光华': '5233'}
+yanTian = {'沙头角': '1391', '大小梅沙': '1364', '盐田': '1451'}
+
+simulateBrowserData = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept-Language': 'zh-CN,zh;q=0.8',
+    'Connection': 'keep-alive',
+    'Host': 'sz.nuomi.com',
+    'Referer': 'https://sz.nuomi.com/326',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.91 Safari/537.36'
+}
+
+# 根据请求url返回数据
+def getInfoFromUrl(url):
+    try:
+        response = requests.get(url, headers=simulateBrowserData, timeout=2)
+        if response.status_code == 200:
+            if response.text:
+                return response.text
+            else:
+                print('url信息返回为空')
+                return getInfoFromUrl(url)
+        if response.status_code == 403:
+            print('服务器拒绝访问url')
+            return getInfoFromUrl(url)
+    except Exception as e:
+        print('url获取网络连接出错', e)
+        return getInfoFromUrl(url)
+# 获取poi区域的店铺数量
+def getshopNum(html):
+    html = etree.HTML(str(html))
+    shopNum = html.xpath('//*[@class="pager-info"]/span/text()')[0]
+    pageNum = math.ceil(int(shopNum)/25)
+    return pageNum
+# 获取每页中每个店铺的url
+def getShopUrl(html):
+    html = etree.HTML(str(html))
+    shopUrlList,shopNameList = [], []
+    for k in range(1, 26):
+        if html.xpath('//*[@class="shop-infoo-list-ul"]/li[%d]/a[1]/@href' % k):
+            shopUrl = html.xpath('//*[@class="shop-infoo-list-ul"]/li[%d]/a[1]/@href' % k)[0]
+            shopName = html.xpath('//*[@class="shop-infoo-list-ul"]/li[%d]/a[2]/h3/text()' % k)[0]
+            shopUrl = 'http:' + shopUrl
+            shopUrlList.append(shopUrl)
+            shopNameList.append(shopName)
+        else:
+            break
+    return shopUrlList, shopNameList
+if __name__ == '__main__':
+    searchArea = '盐田区'
+    searchPoiName = '盐田'
+    cwd = os.getcwd()
+    if not os.path.exists(cwd + '\\' + searchArea):
+        os.makedirs(cwd + '\\' + searchArea)
+    path = cwd + '\\' + searchArea + '\\' + searchPoiName
+    if not os.path.exists(cwd + '\\' + searchArea + '\\' + searchPoiName):
+        os.mkdir(path)
+    url = "http://sz.nuomi.com/326/{0}-{1}".format(zoneId.get(searchArea), yanTian.get(searchPoiName))
+    print(url)
+    html = getInfoFromUrl(url=url)
+    pageNum = getshopNum(html=html)
+    poiUrlData = pd.DataFrame()
+    for i in range(1, pageNum+1):
+        print('正在获取第%d页店铺信息' % i)
+        pageUrl = url + '-page%d' % i
+        pageHtml = getInfoFromUrl(url=pageUrl)
+        shopUrlList, shopNameList = getShopUrl(html=pageHtml)
+        onePageData = pd.DataFrame({'shop_name': shopNameList, 'shop_url': shopUrlList})
+        poiUrlData = poiUrlData.append(onePageData)
+    poiUrlData.to_csv(path + '\\' + 'shopUrlData.csv', index=False)
